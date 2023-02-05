@@ -23,8 +23,10 @@ class Game
     display_guesses
     display_progress
 
-    puts 'Make your next guess:'
+    puts 'Type 1 to save and exit, or type a letter to guess:'
     guess = gets.chomp
+
+    yaml_dump if guess == 1.to_s
 
     until valid_guess?(guess)
       puts 'Invalid guess. Try again:'
@@ -85,6 +87,10 @@ class Game
     end
     @guesses << letter
     @guesses.sort!
+  end
+
+  def yaml_dump
+    puts YAML::dump(self)
   end
 end
 
