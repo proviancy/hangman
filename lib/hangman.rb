@@ -4,7 +4,8 @@ require 'yaml'
 class Game
   attr_reader :word,
               :game_over,
-              :incorrect_guess_limit
+              :incorrect_guess_limit,
+              :save_and_quit
 
   attr_accessor :guesses,
                 :incorrect_guesses
@@ -16,6 +17,7 @@ class Game
     @incorrect_guess_limit = 12
     @progress = Array.new(word.length, '_')
     @game_over = false
+    @save_and_quit = false
   end
 
   def play_round
@@ -25,8 +27,6 @@ class Game
 
     puts 'Type 1 to save and exit, or type a letter to guess:'
     guess = gets.chomp
-
-    yaml_dump if guess == 1.to_s
 
     until valid_guess?(guess)
       puts 'Invalid guess. Try again:'
@@ -66,6 +66,13 @@ class Game
   end
 
   def valid_guess?(guess)
+    if guess.to_s == 1.to_s
+      yaml_dump
+      @game_over = true
+      @save_and_quit = true
+      return true
+    end
+
     return false unless guess.length == 1 && guess =~ /[a-z]/
 
     return false if already_guessed?(guess)
@@ -74,7 +81,7 @@ class Game
   end
 
   def reveal_letter(letter)
-    @progress.each_with_index do |space, index|
+    @progress.each_with_index do |_space, index|
       @progress[index] = letter if @word[index] == letter
     end
   end
@@ -90,7 +97,9 @@ class Game
   end
 
   def yaml_dump
-    puts YAML::dump(self)
+    saved_game = File.open('saved_game.yml', 'w')
+    saved_game.puts YAML::dump(self)
+    saved_game.close
   end
 end
 
@@ -106,6 +115,7 @@ end
 
 valid_words = []
 quit = false
+resume_game = false
 
 wordlist = File.open('wordlist.txt', 'r').readlines
 wordlist.each do |word|
@@ -113,20 +123,43 @@ wordlist.each do |word|
   valid_words << word if valid_word?(word)
 end
 
+if File.exist?('saved_game.yml')
+  puts 'Would you like to load the existing game? (y/n)'
+  case gets.chomp
+  when 'y'
+    game = YAML.load(File.read('saved_game.yml'), permitted_classes: [Game])
+    File.delete('saved_game.yml')
+    resume_game = true
+    puts 'Loading saved game...'
+  else
+    puts 'Creating new game...'
+  end
+end
+
 until quit
-  game = Game.new(select_word(valid_words))
+  unless resume_game
+    game = Game.new(select_word(valid_words))
+    puts 'Welcome to hangman! A random English word has been chosen for you to guess. Good luck!'
+  end
+  resume_game = false
 
   game.play_round until game.game_over
 
   if game.solved?
     puts "\nCongratulations! The word was '#{game.word.join('')}'."
     puts "You solved it with #{game.incorrect_guesses}/#{game.incorrect_guess_limit} incorrect guesses!"
+  elsif game.save_and_quit
+    puts 'Game saved. Goodbye!'
   else
     puts "\n\nGame over! The word was '#{game.word.join('')}'"
   end
 
-  puts "\nWould you like to play again? (y/n)"
-  quit = true if gets.chomp == 'n'
+  quit = true if game.save_and_quit
+
+  unless game.save_and_quit
+    puts "\nWould you like to play again? (y/n)"
+    quit = true if gets.chomp == 'n'
+  end
 end
 
 puts 'Thanks for playing!'
